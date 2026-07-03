@@ -106,7 +106,7 @@ export async function runWeeklyRollup(): Promise<void> {
 
   if (genZh) {
     console.log("[weekly] Calling LLM for ZH weekly report...");
-    const zhSummary = await callLlm(buildWeeklyPrompt(dailyDigests, weekStr, "zh"), 8192);
+    const zhSummary = await callLlm(buildWeeklyPrompt(dailyDigests, weekStr, "zh"), 32000);
     const zhContent =
       `# AI 工具生态周报 ${weekStr}\n\n` +
       `> 覆盖日期: ${last7[last7.length - 1]} ~ ${last7[0]} | 生成时间: ${utcStr} UTC\n\n` +
@@ -122,7 +122,7 @@ export async function runWeeklyRollup(): Promise<void> {
 
   if (genEn) {
     console.log("[weekly] Calling LLM for EN weekly report...");
-    const enSummary = await callLlm(buildWeeklyPrompt(dailyDigests, weekStr, "en"), 8192);
+    const enSummary = await callLlm(buildWeeklyPrompt(dailyDigests, weekStr, "en"), 32000);
     const enContent =
       `# AI Tools Ecosystem Weekly Report ${weekStr}\n\n` +
       `> Coverage: ${last7[last7.length - 1]} ~ ${last7[0]} | Generated: ${utcStr} UTC\n\n` +
@@ -205,7 +205,7 @@ export async function runMonthlyRollup(): Promise<void> {
 
   if (genZh) {
     console.log("[monthly] Calling LLM for ZH monthly report...");
-    const zhSummary = await callLlm(buildMonthlyPrompt(sourceDigests, monthStr, "zh"), 8192);
+    const zhSummary = await callLlm(buildMonthlyPrompt(sourceDigests, monthStr, "zh"), 32000);
     const zhContent =
       `# AI 工具生态月报 ${monthStr}\n\n` +
       `> 数据来源: ${sourceLabel.zh} | 生成时间: ${utcStr} UTC\n\n` +
@@ -221,7 +221,7 @@ export async function runMonthlyRollup(): Promise<void> {
 
   if (genEn) {
     console.log("[monthly] Calling LLM for EN monthly report...");
-    const enSummary = await callLlm(buildMonthlyPrompt(sourceDigests, monthStr, "en"), 8192);
+    const enSummary = await callLlm(buildMonthlyPrompt(sourceDigests, monthStr, "en"), 32000);
     const enContent =
       `# AI Tools Ecosystem Monthly Report ${monthStr}\n\n` +
       `> Sources: ${sourceLabel.en} | Generated: ${utcStr} UTC\n\n` +
