@@ -3,7 +3,6 @@
  * Falls back to built-in defaults if the file is missing or a section is absent.
  */
 
-
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
@@ -25,9 +24,9 @@ interface RawConfig {
   skills_repo?: string;
   openclaw?: RawRepoEntry;
   openclaw_peers?: RawRepoEntry[];
-  enable_web_report?: boolean;      // ← 加这行
-  enable_trending_report?: boolean; // ← 加这行
-  enable_hn_report?: boolean;       // ← 加这行
+  enable_web_report?: boolean;
+  enable_trending_report?: boolean;
+  enable_hn_report?: boolean;
 }
 
 export interface RadarConfig {
@@ -35,9 +34,9 @@ export interface RadarConfig {
   skillsRepo: string;
   openclaw: RepoConfig;
   openclawPeers: RepoConfig[];
-  enableWeb: boolean;      // ← 加这行
-  enableTrending: boolean; // ← 加这行
-  enableHn: boolean;       // ← 加这行
+  enableWeb: boolean;
+  enableTrending: boolean;
+  enableHn: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,9 +93,9 @@ export function loadConfig(configPath = "config.yml"): RadarConfig {
       skillsRepo: DEFAULT_SKILLS_REPO,
       openclaw: DEFAULT_OPENCLAW,
       openclawPeers: DEFAULT_OPENCLAW_PEERS,
-      enableWeb: true,      // ← 加这行
-      enableTrending: true, // ← 加这行
-      enableHn: true,       // ← 加这行
+      enableWeb: true,
+      enableTrending: true,
+      enableHn: true,
     };
   }
 
@@ -124,19 +123,17 @@ export function loadConfig(configPath = "config.yml"): RadarConfig {
       `${cliRepos.length} CLI repos, ${openclawPeers.length} OpenClaw peers`,
   );
 
-    // ✦ 在这后面加这三行 ✦
-  const enableWeb   = raw?.enable_web_report      !== false; // 默认 true
-  const enableTrend = raw?.enable_trending_report  !== false;
-  const enableHn    = raw?.enable_hn_report        !== false;
+  const enableWeb = raw?.enable_web_report !== false;
+  const enableTrend = raw?.enable_trending_report !== false;
+  const enableHn = raw?.enable_hn_report !== false;
 
-  
-  return { 
-     cliRepos,
+  return {
+    cliRepos,
     skillsRepo,
     openclaw,
     openclawPeers,
-    enableWeb,          // ← 加
-    enableTrending: enableTrend,  // ← 加
-    enableHn,           // ← 加
-    };
-}  
+    enableWeb,
+    enableTrending: enableTrend,
+    enableHn,
+  };
+}
