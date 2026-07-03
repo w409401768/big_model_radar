@@ -132,13 +132,11 @@ async function fetchAllData(
         };
       }),
     ]),
-    fetchTrendingData().catch(
-      (): TrendingData => ({
-        trendingRepos: [],
-        searchRepos: [],
-        trendingFetchSuccess: false,
-      }),
-    ),
+    fetchTrendingData().catch((): TrendingData => ({
+      trendingRepos: [],
+      searchRepos: [],
+      trendingFetchSuccess: false,
+    })),
     fetchHnData().catch((): HnData => ({ stories: [], fetchSuccess: false })),
   ]);
 
@@ -187,7 +185,13 @@ async function generateSummaries(
           return { config: cfg, issues, prs, releases, summary };
         } catch (err) {
           console.error(`  [${cfg.id}] LLM call failed: ${err}`);
-          return { config: cfg, issues, prs, releases, summary: summaryFailed };
+          return {
+            config: cfg,
+            issues,
+            prs,
+            releases,
+            summary: summaryFailed,
+          };
         }
       }),
     ),
@@ -235,7 +239,13 @@ async function generateSummaries(
           };
         } catch (err) {
           console.error(`  [${cfg.id}] LLM call failed: ${err}`);
-          return { config: cfg, issues, prs, releases, summary: summaryFailed };
+          return {
+            config: cfg,
+            issues,
+            prs,
+            releases,
+            summary: summaryFailed,
+          };
         }
       }),
     ),
@@ -252,7 +262,13 @@ async function generateSummaries(
     })(),
   ]);
 
-  return { cliDigests, openclawSummary, skillsSummary, peerDigests, trendingSummary };
+  return {
+    cliDigests,
+    openclawSummary,
+    skillsSummary,
+    peerDigests,
+    trendingSummary,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -568,11 +584,11 @@ async function main(): Promise<void> {
   const genEn = enabledLangs.includes("en");
   console.log(`  Languages: ${enabledLangs.join(", ")}`);
 
-	  // 1. Fetch all data in parallel
-	  const webState = loadWebState();
-	  const _allData = await fetchAllData(since, webState);
-	  const { fetched, skillsData } = _allData;
-	  let { webResults, trendingData, hnData } = _allData;
+  // 1. Fetch all data in parallel
+  const webState = loadWebState();
+  const _allData = await fetchAllData(since, webState);
+  const { fetched, skillsData } = _allData;
+  let { webResults, trendingData, hnData } = _allData;
 
   // Apply report toggles from config.yml
   if (!ENABLE_WEB) {
