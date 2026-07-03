@@ -94,7 +94,7 @@ function extractTextContent(content: unknown): string {
   throw new Error("Unexpected response type from LLM");
 }
 
-export async function callLlm(prompt: string, maxTokens = 4096): Promise<string> {
+export async function callLlm(prompt: string, maxTokens = 32000): Promise<string> {
   for (let attempt = 0; ; attempt++) {
     await acquireSlot();
     let released = false;
