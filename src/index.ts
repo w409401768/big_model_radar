@@ -88,9 +88,7 @@ async function fetchAllData(
   hnData: HnData;
 }> {
   const allConfigs = [...CLI_REPOS, OPENCLAW, ...OPENCLAW_PEERS];
-  console.log(
-    `  Tracking: ${allConfigs.map((r) => r.id).join(", ")}, claude-code-skills${ENABLE_WEB ? ", web" : ""}${ENABLE_TRENDING ? ", trending" : ""}${ENABLE_HN ? ", hn" : ""}`,
-  );
+  console.log(`  Tracking: ${allConfigs.map((r) => r.id).join(", ")}, claude-code-skills, web, hn`);
 
   const [fetched, skillsData, webResults, trendingData, hnData] = await Promise.all([
     Promise.all(
@@ -111,61 +109,36 @@ async function fetchAllData(
       console.log(`  [claude-code-skills] prs: ${d.prs.length}, issues: ${d.issues.length}`);
       return d;
     }),
-    ENABLE_WEB
-      ? Promise.all([
-          fetchSiteContent("anthropic", webState).catch((err): WebFetchResult => {
-            console.error(`  [web/anthropic] fetch failed: ${err}`);
-            return {
-              site: "anthropic",
-              siteName: "Anthropic (Claude)",
-              isFirstRun: false,
-              newItems: [],
-              totalDiscovered: 0,
-            };
-          }),
-          fetchSiteContent("openai", webState).catch((err): WebFetchResult => {
-            console.error(`  [web/openai] fetch failed: ${err}`);
-            return {
-              site: "openai",
-              siteName: "OpenAI",
-              isFirstRun: false,
-              newItems: [],
-              totalDiscovered: 0,
-            };
-          }),
-        ])
-      : Promise.resolve([
-          {
-            site: "anthropic",
-            siteName: "Anthropic (Claude)",
-            isFirstRun: false,
-            newItems: [],
-            totalDiscovered: 0,
-          } as WebFetchResult,
-          {
-            site: "openai",
-            siteName: "OpenAI",
-            isFirstRun: false,
-            newItems: [],
-            totalDiscovered: 0,
-          } as WebFetchResult,
-        ]),
-    ENABLE_TRENDING
-      ? fetchTrendingData().catch(
-          (): TrendingData => ({
-            trendingRepos: [],
-            searchRepos: [],
-            trendingFetchSuccess: false,
-          }),
-        )
-      : Promise.resolve({
-          trendingRepos: [],
-          searchRepos: [],
-          trendingFetchSuccess: false,
-        } as TrendingData),
-    ENABLE_HN
-      ? fetchHnData().catch((): HnData => ({ stories: [], fetchSuccess: false }))
-      : Promise.resolve({ stories: [], fetchSuccess: false } as HnData),
+    Promise.all([
+      fetchSiteContent("anthropic", webState).catch((err): WebFetchResult => {
+        console.error(`  [web/anthropic] fetch failed: ${err}`);
+        return {
+          site: "anthropic",
+          siteName: "Anthropic (Claude)",
+          isFirstRun: false,
+          newItems: [],
+          totalDiscovered: 0,
+        };
+      }),
+      fetchSiteContent("openai", webState).catch((err): WebFetchResult => {
+        console.error(`  [web/openai] fetch failed: ${err}`);
+        return {
+          site: "openai",
+          siteName: "OpenAI",
+          isFirstRun: false,
+          newItems: [],
+          totalDiscovered: 0,
+        };
+      }),
+    ]),
+    fetchTrendingData().catch(
+      (): TrendingData => ({
+        trendingRepos: [],
+        searchRepos: [],
+        trendingFetchSuccess: false,
+      }),
+    ),
+    fetchHnData().catch((): HnData => ({ stories: [], fetchSuccess: false })),
   ]);
 
   return { fetched, skillsData, webResults, trendingData, hnData };
@@ -596,7 +569,37 @@ async function main(): Promise<void> {
 
   // 1. Fetch all data in parallel
   const webState = loadWebState();
-  const { fetched, skillsData, webResults, trendingData, hnData } = await fetchAllData(since, webState);
+  let { fetched, skillsData, webResults, trendingData, hnData } = await fetchAllData(since, webState);
+
+  // Apply report toggles from config.yml
+  if (!ENABLE_WEB) {
+    webResults = [
+      {
+        site: "anthropic",
+        siteName: "Anthropic (Claude)",
+        isFirstRun: false,
+        newItems: [],
+        totalDiscovered: 0,
+      } as WebFetchResult,
+      {
+        site: "openai",
+        siteName: "OpenAI",
+        isFirstRun: false,
+        newItems: [],
+        totalDiscovered: 0,
+      } as WebFetchResult,
+    ];
+  }
+  if (!ENABLE_TRENDING) {
+    trendingData = {
+      trendingRepos: [],
+      searchRepos: [],
+      trendingFetchSuccess: false,
+    } as TrendingData;
+  }
+  if (!ENABLE_HN) {
+    hnData = { stories: [], fetchSuccess: false } as HnData;
+  }
 
   const peerIds = new Set(OPENCLAW_PEERS.map((p) => p.id));
   const fetchedCli = fetched.filter((f) => f.cfg.id !== OPENCLAW.id && !peerIds.has(f.cfg.id));
@@ -743,11 +746,11 @@ async function main(): Promise<void> {
   }
 
   // Web report: zh saves state, en skips state save
-  if (genZh && ENABLE_WEB) await saveWebReport(webResults, webState, utcStr, dateStr, digestRepo, footer, "zh");
-  if (genEn && ENABLE_WEB) await saveWebReport(webResults, webState, utcStr, dateStr, digestRepo, enFooter, "en");
+  if (genZh) await saveWebReport(webResults, webState, utcStr, dateStr, digestRepo, footer, "zh");
+  if (genEn) await saveWebReport(webResults, webState, utcStr, dateStr, digestRepo, enFooter, "en");
 
   await Promise.all([
-    genZh && zhSummaries && ENABLE_TRENDING
+    genZh && zhSummaries
       ? saveTrendingReport(
           trendingData,
           zhSummaries.trendingSummary,
@@ -758,7 +761,7 @@ async function main(): Promise<void> {
           "zh",
         )
       : Promise.resolve(),
-    genEn && enSummaries && ENABLE_TRENDING
+    genEn && enSummaries
       ? saveTrendingReport(
           trendingData,
           enSummaries.trendingSummary,
@@ -769,8 +772,8 @@ async function main(): Promise<void> {
           "en",
         )
       : Promise.resolve(),
-    genZh && ENABLE_HN ? saveHnReport(hnData, utcStr, dateStr, digestRepo, footer, "zh") : Promise.resolve(),
-    genEn && ENABLE_HN ? saveHnReport(hnData, utcStr, dateStr, digestRepo, enFooter, "en") : Promise.resolve(),
+    genZh ? saveHnReport(hnData, utcStr, dateStr, digestRepo, footer, "zh") : Promise.resolve(),
+    genEn ? saveHnReport(hnData, utcStr, dateStr, digestRepo, enFooter, "en") : Promise.resolve(),
   ]);
 
   console.log("Done!");
