@@ -132,11 +132,13 @@ async function fetchAllData(
         };
       }),
     ]),
-    fetchTrendingData().catch((): TrendingData => ({
-      trendingRepos: [],
-      searchRepos: [],
-      trendingFetchSuccess: false,
-    })),
+    fetchTrendingData().catch(
+      (): TrendingData => ({
+        trendingRepos: [],
+        searchRepos: [],
+        trendingFetchSuccess: false,
+      }),
+    ),
     fetchHnData().catch((): HnData => ({ stories: [], fetchSuccess: false })),
   ]);
 
