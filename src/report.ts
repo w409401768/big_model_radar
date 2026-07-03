@@ -1,235 +1,164 @@
 /**
- * Weekly and monthly rollup report generator.
- * Reads existing daily digest files — no GitHub API calls needed.
+ * LLM invocation and file output helpers.
+ * Supports OpenAI-compatible chat/completions endpoints.
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import { callLlm, saveFile, autoGenFooter } from "./report.ts";
-import { buildWeeklyPrompt, buildMonthlyPrompt } from "./prompts.ts";
-import { createGitHubIssue } from "./github.ts";
 
-const DIGESTS_DIR = "digests";
-const MAX_CHARS_PER_REPORT = 2500;
-
-// Source report types to read for rollups (in priority order)
-const ROLLUP_SOURCES = ["ai-cli", "ai-agents", "ai-trending", "ai-hn", "ai-web"];
+const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+const DEFAULT_MODEL = "gpt-4.1-mini";
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Concurrency limiter — prevents rate-limit (429) errors when many LLM calls
+// are fired in parallel. At most LLM_CONCURRENCY requests are in-flight at
+// any given time; the rest queue and run as slots free up.
 // ---------------------------------------------------------------------------
 
-function getDateDirs(): string[] {
-  if (!fs.existsSync(DIGESTS_DIR)) return [];
-  return fs
-    .readdirSync(DIGESTS_DIR)
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && fs.statSync(path.join(DIGESTS_DIR, d)).isDirectory())
-    .sort()
-    .reverse();
+const LLM_CONCURRENCY = 5;
+let llmSlots = LLM_CONCURRENCY;
+const llmQueue: Array<() => void> = [];
+
+function acquireSlot(): Promise<void> {
+  if (llmSlots > 0) {
+    llmSlots--;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => llmQueue.push(resolve));
 }
 
-/** Read and truncate a daily digest file. Returns null if not found. */
-function readDailyDigest(date: string): string | null {
-  for (const type of ROLLUP_SOURCES) {
-    const p = path.join(DIGESTS_DIR, date, `${type}.md`);
-    if (fs.existsSync(p)) {
-      const content = fs.readFileSync(p, "utf-8");
-      const truncated = content.slice(0, MAX_CHARS_PER_REPORT);
-      return truncated.length < content.length ? truncated + "\n...[摘要截断]" : truncated;
-    }
-  }
-  return null;
-}
-
-/** Read a weekly report file. Returns null if not found. */
-function readWeeklyDigest(date: string): string | null {
-  const p = path.join(DIGESTS_DIR, date, "ai-weekly.md");
-  if (!fs.existsSync(p)) return null;
-  const content = fs.readFileSync(p, "utf-8");
-  return content.slice(0, 3000) + (content.length > 3000 ? "\n...[截断]" : "");
-}
-
-/** Format a date as ISO week string, e.g. "2026-W10". */
-function toWeekStr(date: Date): string {
-  // ISO week: week containing the first Thursday of the year
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
-}
-
-// ---------------------------------------------------------------------------
-// Weekly rollup
-// ---------------------------------------------------------------------------
-
-export async function runWeeklyRollup(): Promise<void> {
-  const now = new Date();
-  // Use CST date (UTC+8)
-  const cstDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  const dateStr = cstDate.toISOString().slice(0, 10);
-  const utcStr = now.toISOString().slice(0, 16).replace("T", " ");
-  const weekStr = toWeekStr(cstDate);
-  const digestRepo = process.env["DIGEST_REPO"] ?? "";
-  const langs = (process.env["REPORT_LANGS"] ?? "zh")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => s === "zh" || s === "en");
-  const enabledLangs = langs.length > 0 ? langs : ["zh"];
-  const genZh = enabledLangs.includes("zh");
-  const genEn = enabledLangs.includes("en");
-
-  console.log(`[weekly] Generating rollup for ${weekStr} (date: ${dateStr})`);
-  console.log(`[weekly] Languages: ${enabledLangs.join(", ")}`);
-
-  // Collect last 7 days of daily digests
-  const allDates = getDateDirs();
-  const last7 = allDates.slice(0, 7);
-
-  const dailyDigests: Record<string, string> = {};
-  for (const date of last7) {
-    const content = readDailyDigest(date);
-    if (content) dailyDigests[date] = content;
-  }
-
-  if (Object.keys(dailyDigests).length === 0) {
-    console.log("[weekly] No daily digests found, skipping.");
-    return;
-  }
-
-  console.log(
-    `[weekly] Found ${Object.keys(dailyDigests).length} daily digests: ${Object.keys(dailyDigests).join(", ")}`,
-  );
-
-  const footer = autoGenFooter("zh");
-  const enFooter = autoGenFooter("en");
-
-  if (genZh) {
-    console.log("[weekly] Calling LLM for ZH weekly report...");
-    const zhSummary = await callLlm(buildWeeklyPrompt(dailyDigests, weekStr, "zh"), 8192);
-    const zhContent =
-      `# AI 工具生态周报 ${weekStr}\n\n` +
-      `> 覆盖日期: ${last7[last7.length - 1]} ~ ${last7[0]} | 生成时间: ${utcStr} UTC\n\n` +
-      `---\n\n` +
-      zhSummary +
-      footer;
-    console.log(`  Saved ${saveFile(zhContent, dateStr, "ai-weekly.md")}`);
-    if (digestRepo) {
-      const url = await createGitHubIssue(`📅 AI 工具生态周报 ${weekStr}`, zhContent, "weekly");
-      console.log(`  Created weekly issue: ${url}`);
-    }
-  }
-
-  if (genEn) {
-    console.log("[weekly] Calling LLM for EN weekly report...");
-    const enSummary = await callLlm(buildWeeklyPrompt(dailyDigests, weekStr, "en"), 8192);
-    const enContent =
-      `# AI Tools Ecosystem Weekly Report ${weekStr}\n\n` +
-      `> Coverage: ${last7[last7.length - 1]} ~ ${last7[0]} | Generated: ${utcStr} UTC\n\n` +
-      `---\n\n` +
-      enSummary +
-      enFooter;
-    console.log(`  Saved ${saveFile(enContent, dateStr, "ai-weekly-en.md")}`);
-  }
-
-  console.log("[weekly] Done!");
-}
-
-// ---------------------------------------------------------------------------
-// Monthly rollup
-// ---------------------------------------------------------------------------
-
-export async function runMonthlyRollup(): Promise<void> {
-  const now = new Date();
-  const cstDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  // Monthly report covers the PREVIOUS month
-  const prevMonth = new Date(Date.UTC(cstDate.getUTCFullYear(), cstDate.getUTCMonth() - 1, 1));
-  const monthStr = prevMonth.toISOString().slice(0, 7); // "2026-02"
-  const dateStr = cstDate.toISOString().slice(0, 10);
-  const utcStr = now.toISOString().slice(0, 16).replace("T", " ");
-  const digestRepo = process.env["DIGEST_REPO"] ?? "";
-  const langs = (process.env["REPORT_LANGS"] ?? "zh")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => s === "zh" || s === "en");
-  const enabledLangs = langs.length > 0 ? langs : ["zh"];
-  const genZh = enabledLangs.includes("zh");
-  const genEn = enabledLangs.includes("en");
-
-  console.log(`[monthly] Generating rollup for ${monthStr} (date: ${dateStr})`);
-  console.log(`[monthly] Languages: ${enabledLangs.join(", ")}`);
-
-  const allDates = getDateDirs();
-
-  // Prefer weekly reports from the target month
-  const monthDates = allDates.filter((d) => d.startsWith(monthStr));
-  const weeklyDates = monthDates.filter((d) => fs.existsSync(path.join(DIGESTS_DIR, d, "ai-weekly.md")));
-
-  let sourceDigests: Record<string, string>;
-  let sourceLabel: { zh: string; en: string };
-
-  if (weeklyDates.length >= 2) {
-    // Use weekly reports
-    sourceLabel = {
-      zh: `${weeklyDates.length} 份周报`,
-      en: `${weeklyDates.length} weekly reports`,
-    };
-    sourceDigests = {};
-    for (const date of weeklyDates) {
-      const content = readWeeklyDigest(date);
-      if (content) sourceDigests[date] = content;
-    }
+function releaseSlot(): void {
+  const next = llmQueue.shift();
+  if (next) {
+    next();
   } else {
-    // Sample daily reports: every 4th day, max 10
-    const sampled = monthDates.filter((_, i) => i % 4 === 0).slice(0, 10);
-    sourceLabel = {
-      zh: `${sampled.length} 份日报（每4日采样）`,
-      en: `${sampled.length} daily reports (sampled every 4 days)`,
-    };
-    sourceDigests = {};
-    for (const date of sampled) {
-      const content = readDailyDigest(date);
-      if (content) sourceDigests[date] = content;
+    llmSlots++;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// LLM
+// ---------------------------------------------------------------------------
+
+const MAX_RETRIES = 3;
+const RETRY_BASE_MS = 5_000; // 5 s, 10 s, 20 s
+
+function is429(err: unknown): boolean {
+  return (err as { status?: number })?.status === 429 || String(err).includes("429");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function getLlmApiKey(): string {
+  return process.env["OPENAI_API_KEY"] ?? process.env["ANTHROPIC_API_KEY"] ?? "";
+}
+
+export function getLlmBaseUrl(): string {
+  return (process.env["OPENAI_BASE_URL"] ?? process.env["ANTHROPIC_BASE_URL"] ?? DEFAULT_OPENAI_BASE_URL)
+    .replace(/\/$/, "")
+    .trim();
+}
+
+function getLlmModel(): string {
+  return (process.env["OPENAI_MODEL"] ?? process.env["ANTHROPIC_MODEL"] ?? DEFAULT_MODEL).trim();
+}
+
+export function hasLlmCredentials(): boolean {
+  return getLlmApiKey().length > 0;
+}
+
+function extractTextContent(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    const text = content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (
+          part &&
+          typeof part === "object" &&
+          "type" in part &&
+          part.type === "text" &&
+          "text" in part &&
+          typeof part.text === "string"
+        ) {
+          return part.text;
+        }
+        return "";
+      })
+      .join("")
+      .trim();
+    if (text) return text;
+  }
+  throw new Error("Unexpected response type from LLM");
+}
+
+export async function callLlm(prompt: string, maxTokens = 4096): Promise<string> {
+  for (let attempt = 0; ; attempt++) {
+    await acquireSlot();
+    let released = false;
+    try {
+      const apiKey = getLlmApiKey();
+      if (!apiKey) throw new Error("Missing required environment variable: OPENAI_API_KEY");
+
+      const resp = await fetch(`${getLlmBaseUrl()}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: getLlmModel(),
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.2,
+          max_tokens: maxTokens,
+        }),
+      });
+      if (!resp.ok) {
+        throw new Error(`LLM API ${resp.status}: ${await resp.text()}`);
+      }
+
+      const data = (await resp.json()) as {
+        choices?: Array<{
+          message?: {
+            content?: unknown;
+          };
+        }>;
+      };
+      const content = data.choices?.[0]?.message?.content;
+      return extractTextContent(content);
+    } catch (err) {
+      if (attempt < MAX_RETRIES && is429(err)) {
+        releaseSlot();
+        released = true;
+        const wait = RETRY_BASE_MS * 2 ** attempt;
+        console.error(`[llm] 429 — retry ${attempt + 1}/${MAX_RETRIES} in ${wait / 1000}s...`);
+        await sleep(wait);
+        continue;
+      }
+      throw err;
+    } finally {
+      if (!released) releaseSlot();
     }
   }
+}
 
-  if (Object.keys(sourceDigests).length === 0) {
-    console.log(`[monthly] No source digests found for ${monthStr}, skipping.`);
-    return;
-  }
+// ---------------------------------------------------------------------------
+// File output
+// ---------------------------------------------------------------------------
 
-  console.log(`[monthly] Source: ${sourceLabel.zh}`);
+export function saveFile(content: string, ...segments: string[]): string {
+  const filepath = path.join("digests", ...segments);
+  fs.mkdirSync(path.dirname(filepath), { recursive: true });
+  fs.writeFileSync(filepath, content, "utf-8");
+  return filepath;
+}
 
-  const footer = autoGenFooter("zh");
-  const enFooter = autoGenFooter("en");
-
-  if (genZh) {
-    console.log("[monthly] Calling LLM for ZH monthly report...");
-    const zhSummary = await callLlm(buildMonthlyPrompt(sourceDigests, monthStr, "zh"), 8192);
-    const zhContent =
-      `# AI 工具生态月报 ${monthStr}\n\n` +
-      `> 数据来源: ${sourceLabel.zh} | 生成时间: ${utcStr} UTC\n\n` +
-      `---\n\n` +
-      zhSummary +
-      footer;
-    console.log(`  Saved ${saveFile(zhContent, dateStr, "ai-monthly.md")}`);
-    if (digestRepo) {
-      const url = await createGitHubIssue(`📆 AI 工具生态月报 ${monthStr}`, zhContent, "monthly");
-      console.log(`  Created monthly issue: ${url}`);
-    }
-  }
-
-  if (genEn) {
-    console.log("[monthly] Calling LLM for EN monthly report...");
-    const enSummary = await callLlm(buildMonthlyPrompt(sourceDigests, monthStr, "en"), 8192);
-    const enContent =
-      `# AI Tools Ecosystem Monthly Report ${monthStr}\n\n` +
-      `> Sources: ${sourceLabel.en} | Generated: ${utcStr} UTC\n\n` +
-      `---\n\n` +
-      enSummary +
-      enFooter;
-    console.log(`  Saved ${saveFile(enContent, dateStr, "ai-monthly-en.md")}`);
-  }
-
-  console.log("[monthly] Done!");
+export function autoGenFooter(lang: "zh" | "en" = "zh"): string {
+  const digestRepo = process.env["DIGEST_REPO"] ?? "";
+  if (!digestRepo) return "";
+  return lang === "en"
+    ? `\n\n---\n*This digest is auto-generated by [Big Model Radar](https://github.com/${digestRepo}).*`
+    : `\n\n---\n*本日报由 [Big Model Radar](https://github.com/${digestRepo}) 自动生成。*`;
 }
