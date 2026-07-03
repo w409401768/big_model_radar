@@ -207,7 +207,7 @@ async function generateSummaries(
       }
       console.log(`  [openclaw] Calling LLM for OpenClaw report...`);
       try {
-        return await callLlm(buildPeerPrompt(cfg, issues, prs, releases, dateStr, 50, 30, lang), 128000);
+        return await callLlm(buildPeerPrompt(cfg, issues, prs, releases, dateStr, 50, 30, lang), 32000);
       } catch (err) {
         console.error(`  [openclaw] LLM call failed: ${err}`);
         return summaryFailed;
@@ -238,7 +238,7 @@ async function generateSummaries(
             releases,
             summary: await callLlm(
               buildPeerPrompt(cfg, issues, prs, releases, dateStr, undefined, undefined, lang),
-              8192,
+              32000,
             ),
           };
         } catch (err) {
@@ -258,7 +258,7 @@ async function generateSummaries(
       if (!hasData) return trendingNoData;
       console.log("  [trending] Calling LLM for trending report...");
       try {
-        return await callLlm(buildTrendingPrompt(trendingData, dateStr, lang), 6144);
+        return await callLlm(buildTrendingPrompt(trendingData, dateStr, lang), 32000);
       } catch (err) {
         console.error(`  [trending] LLM call failed: ${err}`);
         return trendingFailed;
@@ -425,7 +425,7 @@ async function saveWebReport(
   if (hasNewContent) {
     console.log(`  [web/${lang}] Calling LLM for web content report...`);
     try {
-      const webSummary = await callLlm(buildWebReportPrompt(webResults, dateStr, lang), 8192);
+      const webSummary = await callLlm(buildWebReportPrompt(webResults, dateStr, lang), 32000);
       const isFirstRun = webResults.some((r) => r.isFirstRun);
       const totalNew = webResults.reduce((sum, r) => sum + r.newItems.length, 0);
 
@@ -674,7 +674,7 @@ async function main(): Promise<void> {
       ENABLE_CLI_DIGEST
         ? callLlm(buildComparisonPrompt(zhSummaries.cliDigests, dateStr, "zh"))
         : Promise.resolve(""),
-      callLlm(buildPeersComparisonPrompt(openclawDigest, zhSummaries.peerDigests, dateStr, "zh")),
+      callLlm(buildPeersComparisonPrompt(openclawDigest, zhSummaries.peerDigests, dateStr, "zh"), 32000),
     ]);
   }
   if (genEn && enSummaries) {
@@ -689,7 +689,7 @@ async function main(): Promise<void> {
       ENABLE_CLI_DIGEST
         ? callLlm(buildComparisonPrompt(enSummaries.cliDigests, dateStr, "en"))
         : Promise.resolve(""),
-      callLlm(buildPeersComparisonPrompt(enOpenclawDigest, enSummaries.peerDigests, dateStr, "en")),
+      callLlm(buildPeersComparisonPrompt(enOpenclawDigest, enSummaries.peerDigests, dateStr, "en"), 32000),
     ]);
   }
 
