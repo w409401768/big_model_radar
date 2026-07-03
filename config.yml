@@ -11,6 +11,7 @@
 enable_web_report: false
 enable_trending_report: false
 enable_hn_report: false
+enable_cli_digest: false
 cli_repos:
   - id: kimi-cli
     repo: MoonshotAI/kimi-cli
