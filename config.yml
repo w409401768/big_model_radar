@@ -1,20 +1,15 @@
 # agents-radar configuration
 # Edit this file to customize which repositories are tracked.
 # Changes take effect on the next workflow run.
-
-
-
-# 报告开关（默认 true）
-    enable_web_report: false
-    enable_trending_report: false
-    enable_hn_report: false
-
-
 # ── AI CLI tools ──────────────────────────────────────────────────────────────
 # Tracked for per-tool digests and cross-tool comparison.
 # Each entry requires: id (filename slug), repo (owner/repo), name (display name).
 # Set paginated: true for high-volume repos with many daily updates.
+# 报告开关（默认 true）
 
+    enable_web_report: false
+    enable_trending_report: false
+    enable_hn_report: false
 cli_repos:
   - id: kimi-cli
     repo: MoonshotAI/kimi-cli
