@@ -229,18 +229,19 @@ async function generateSummaries(
           console.log(`  [${cfg.id}] No activity, skipping LLM call`);
           return { config: cfg, issues, prs, releases, summary: noActivity };
         }
-        console.log(`  [${cfg.id}] Calling LLM for peer summary...`);
-        try {
-          return {
-            config: cfg,
-            issues,
-            prs,
-            releases,
-            summary: await callLlm(
-              buildPeerPrompt(cfg, issues, prs, releases, dateStr, undefined, undefined, lang),
-            ),
-          };
-        } catch (err) {
+	        console.log(`  [${cfg.id}] Calling LLM for peer summary...`);
+	        try {
+	          return {
+	            config: cfg,
+	            issues,
+	            prs,
+	            releases,
+	            summary: await callLlm(
+	              buildPeerPrompt(cfg, issues, prs, releases, dateStr, undefined, undefined, lang),
+	              8192,
+	            ),
+	          };
+	        } catch (err) {
           console.error(`  [${cfg.id}] LLM call failed: ${err}`);
           return {
             config: cfg,
