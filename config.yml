@@ -44,9 +44,9 @@ openclaw_peers:
     repo: sipeed/picoclaw
     name: PicoClaw
     paginated: true
-  - id: QwenPaw
-    repo: agentscope-ai/QwenPaw
-    name: qwenpaw
+  - id: qwenpaw
+    repo: agentscope-ai/qwenpaw
+    name: QwenPaw
     paginated: true
   - id: hermesagent
     repo: NousResearch/hermes-agent
