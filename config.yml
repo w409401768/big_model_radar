@@ -43,15 +43,12 @@ openclaw_peers:
   - id: zeroclaw
     repo: zeroclaw-labs/zeroclaw
     name: Zeroclaw
-    paginated: true
   - id: picoclaw
     repo: sipeed/picoclaw
     name: PicoClaw
-    paginated: true
   - id: qwenpaw
     repo: agentscope-ai/qwenpaw
     name: QwenPaw
-    paginated: true
   - id: hermesagent
     repo: NousResearch/hermes-agent
     name: hermes-agent
