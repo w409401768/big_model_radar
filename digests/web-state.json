@@ -1,6 +1,6 @@
 {
   "anthropic": {
-    "lastChecked": "2026-07-03T22:54:49.385Z",
+    "lastChecked": "2026-07-04T22:46:41.009Z",
     "seenUrls": {
       "https://www.anthropic.com/news/responsible-scaling-policy-v3": "2026-02-25T23:57:06.000Z",
       "https://www.anthropic.com/research/deprecation-updates-opus-3": "2026-02-25T20:58:11.000Z",
@@ -414,7 +414,7 @@
     }
   },
   "openai": {
-    "lastChecked": "2026-07-03T22:54:34.789Z",
+    "lastChecked": "2026-07-04T22:46:37.622Z",
     "seenUrls": {
       "https://openai.com/index/arvind-kc-chief-people-officer/": "2026-05-29T00:25:33.242Z",
       "https://openai.com/index/put-ai-to-work-for-your-product-team/": "2026-06-12T04:05:36.713Z",
@@ -1112,7 +1112,7 @@
       "https://openai.com/index/model-disproves-discrete-geometry-conjecture/": "2026-06-03T04:01:03.645Z",
       "https://openai.com/business/learn/gartner-2026-agentic-coding-leader/": "2026-06-16T22:28:50.839Z",
       "https://openai.com/index/building-self-improving-tax-agents-with-codex/": "2026-06-04T19:16:32.732Z",
-      "https://openai.com/index/core-dump-epidemiology-data-infrastructure-bug/": "2026-07-03T13:56:27.390Z",
+      "https://openai.com/index/core-dump-epidemiology-data-infrastructure-bug/": "2026-07-04T04:10:44.389Z",
       "https://openai.com/index/introducing-genebench-pro/": "2026-07-03T20:54:36.291Z",
       "https://openai.com/index/openai-broadcom-jalapeno-inference-chip/": "2026-07-02T06:28:47.433Z",
       "https://openai.com/index/hp-frontier-partnership/": "2026-07-01T23:23:03.958Z",
